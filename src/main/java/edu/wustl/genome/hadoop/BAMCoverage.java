@@ -29,47 +29,46 @@ public class BAMCoverage {
     public static class BAMCoverageMapper
             extends Mapper<LongWritable, SAMRecordWritable, Text, IntWritable> {
 
-            private final static IntWritable one = new IntWritable(1);
-            private Text chrom_pos = new Text();
+        private final static IntWritable one = new IntWritable(1);
+        private Text chrom_pos = new Text();
 
-            public void map(LongWritable key, SAMRecordWritable value, Context context
-                    ) throws IOException, InterruptedException {
-                SAMRecord record = value.get();
-                String referenceName = record.getReferenceName();
-                List<AlignmentBlock> alignmentBlocks = record.getAlignmentBlocks();
-                AlignmentBlock alignment_block;
-                Iterator<AlignmentBlock> itr = alignmentBlocks.iterator();
-                int reference_start;
-                int block_length;
-                int position;
+        public void map(LongWritable key, SAMRecordWritable value, Context context) 
+                throws IOException, InterruptedException {
+            SAMRecord record = value.get();
+            String referenceName = record.getReferenceName();
+            List<AlignmentBlock> alignmentBlocks = record.getAlignmentBlocks();
+            AlignmentBlock alignment_block;
+            Iterator<AlignmentBlock> itr = alignmentBlocks.iterator();
+            int reference_start;
+            int block_length;
+            int position;
 
-                while ( itr.hasNext() ) {
-                    alignment_block = itr.next();
-                    reference_start = alignment_block.getReferenceStart();
-                    block_length = alignment_block.getLength();
-                    for (position = reference_start; position < reference_start + block_length; position++) {
-                        chrom_pos.set(referenceName + ":" + String.valueOf(position));
-                        context.write(chrom_pos, one);
-                    }
+            while ( itr.hasNext() ) {
+                alignment_block = itr.next();
+                reference_start = alignment_block.getReferenceStart();
+                block_length = alignment_block.getLength();
+                for (position = reference_start; position < reference_start + block_length; position++) {
+                    chrom_pos.set(referenceName + ":" + String.valueOf(position));
+                    context.write(chrom_pos, one);
                 }
-                    }
+            }
+        }
     }
 
     public static class IntSumReducer 
             extends Reducer<Text,IntWritable,Text,IntWritable> {
 
-            private IntWritable result = new IntWritable();
+        private IntWritable result = new IntWritable();
 
-            public void reduce(Text key, Iterable<IntWritable> values, Context context
-                    ) throws IOException, InterruptedException {
-
-                int sum = 0;
-                for (IntWritable val : values) {
-                    sum += val.get();
-                }
-                result.set(sum);
-                context.write(key, result);
-                    }
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) 
+                throws IOException, InterruptedException {
+            int sum = 0;
+            for (IntWritable val : values) {
+                sum += val.get();
+            }
+            result.set(sum);
+            context.write(key, result);
+        }
     }
 
     public static void main(String[] args) throws Exception {
