@@ -51,7 +51,7 @@
     <dependency>
       <groupId>fi.tkk.ics.hadoop.bam</groupId>
       <artifactId>hadoop-bam</artifactId>
-      <version>5.0</version>
+      <version>6.0-alpha</version>
     </dependency>
   </dependencies>
 
