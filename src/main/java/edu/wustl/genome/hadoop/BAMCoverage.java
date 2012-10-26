@@ -13,12 +13,11 @@ import java.util.List;
 import java.util.Iterator;
 import java.lang.String;
 
-import edu.wustl.genome.hadoop.GenomicPositionWritable;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -28,9 +27,10 @@ import org.apache.hadoop.util.GenericOptionsParser;
 public class BAMCoverage {
 
     public static class BAMCoverageMapper
-            extends Mapper<LongWritable, SAMRecordWritable, GenomicPositionWritable, IntWritable> {
+            extends Mapper<LongWritable, SAMRecordWritable, Text, IntWritable> {
 
         private final static IntWritable one = new IntWritable(1);
+        private Text chrom_pos = new Text();
 
         public void map(LongWritable key, SAMRecordWritable value, Context context) 
                 throws IOException, InterruptedException {
@@ -48,19 +48,19 @@ public class BAMCoverage {
                 reference_start = alignment_block.getReferenceStart();
                 block_length = alignment_block.getLength();
                 for (position = reference_start; position < reference_start + block_length; position++) {
-                    GenomicPositionWritable gpw = new GenomicPositionWritable(referenceName, position);
-                    context.write(gpw, one);
+                    chrom_pos.set(referenceName + ":" + String.valueOf(position));
+                    context.write(chrom_pos, one);
                 }
             }
         }
     }
 
     public static class IntSumReducer 
-            extends Reducer<GenomicPositionWritable, IntWritable, GenomicPositionWritable, IntWritable> {
+            extends Reducer<Text,IntWritable,Text,IntWritable> {
 
         private IntWritable result = new IntWritable();
 
-        public void reduce(GenomicPositionWritable key, Iterable<IntWritable> values, Context context) 
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) 
                 throws IOException, InterruptedException {
             int sum = 0;
             for (IntWritable val : values) {
@@ -78,22 +78,16 @@ public class BAMCoverage {
             System.err.println("Usage: BAMCoverage <in> <out>");
             System.exit(2);
         }
-
         Job job = new Job(conf, "BAM Coverage");
         job.setJarByClass(BAMCoverage.class);
-        job.setJobName("Per position genomic coverage");
-
-        BAMInputFormat.addInputPath(job, new Path(otherArgs[0]));
-        FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
-        job.setOutputKeyClass(GenomicPositionWritable.class);
-        job.setInputFormatClass(AnySAMInputFormat.class);
-
         job.setMapperClass(BAMCoverageMapper.class);
         job.setCombinerClass(IntSumReducer.class);
         job.setReducerClass(IntSumReducer.class);
-        job.setOutputKeyClass(GenomicPositionWritable.class);
+        job.setInputFormatClass(AnySAMInputFormat.class);
+        job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
-
+        BAMInputFormat.addInputPath(job, new Path(otherArgs[0]));
+        FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
