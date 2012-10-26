@@ -31,16 +31,14 @@ public class BAMCoverage {
             extends Mapper<LongWritable, SAMRecordWritable, GenomicPositionWritable, IntWritable> {
 
         private final static IntWritable one = new IntWritable(1);
-        private final static GenomicPositionWritable gpw = new GenomicPositionWritable();
 
         public void map(LongWritable key, SAMRecordWritable value, Context context) 
                 throws IOException, InterruptedException {
             SAMRecord record = value.get();
             String referenceName = record.getReferenceName();
             List<AlignmentBlock> alignmentBlocks = record.getAlignmentBlocks();
-            Iterator<AlignmentBlock> itr = alignmentBlocks.iterator();
-
             AlignmentBlock alignment_block;
+            Iterator<AlignmentBlock> itr = alignmentBlocks.iterator();
             int reference_start;
             int block_length;
             int position;
@@ -50,8 +48,7 @@ public class BAMCoverage {
                 reference_start = alignment_block.getReferenceStart();
                 block_length = alignment_block.getLength();
                 for (position = reference_start; position < reference_start + block_length; position++) {
-                    gpw.chromosome = referenceName;
-                    gpw.position = position;
+                    GenomicPositionWritable gpw = new GenomicPositionWritable(referenceName, position);
                     context.write(gpw, one);
                 }
             }

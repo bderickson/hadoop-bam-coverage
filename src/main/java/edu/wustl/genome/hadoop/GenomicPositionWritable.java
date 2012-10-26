@@ -1,7 +1,6 @@
 package edu.wustl.genome.hadoop;
 
 import org.apache.hadoop.io.WritableComparable;
-import org.apache.hadoop.io.WritableUtils;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -20,26 +19,25 @@ public class GenomicPositionWritable implements WritableComparable<GenomicPositi
 
     @Override
     public void write(DataOutput out) throws IOException {
-        WritableUtils.writeString(out, chromosome);
-        WritableUtils.writeVInt(out, position);
+        out.writeUTF(chromosome);
+        out.writeInt(position);
     }
 
     @Override
     public void readFields(DataInput in) throws IOException {
-        chromosome = WritableUtils.readString(in);
-        position = WritableUtils.readVInt(in);
+        chromosome = in.readUTF();
+        position = in.readInt();
     }
 
     @Override
     // This has to be called on each key/value pair emmitted by map during the shuffle.
     // Should be optimized as much as possible.
     public int compareTo(GenomicPositionWritable o) {
-        int chr_compare = this.chromosome.compareTo(o.chromosome);
-        if (chr_compare == 0) {
+        if (o.chromosome.equals(this.chromosome)) {
             return this.position.compareTo(o.position);
         }
         else {
-            return chr_compare;
+            return this.chromosome.compareTo(o.chromosome);
         }
     }
 
@@ -49,7 +47,7 @@ public class GenomicPositionWritable implements WritableComparable<GenomicPositi
             return false;
         }
         GenomicPositionWritable other = (GenomicPositionWritable)o;
-        return (this.chromosome.equals(other.chromosome)) && (this.position.equals(other.position));
+        return (this.chromosome == other.chromosome) && (this.position == other.position);
     }
 
     @Override
