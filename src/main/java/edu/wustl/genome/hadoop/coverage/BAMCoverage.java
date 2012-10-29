@@ -1,4 +1,4 @@
-package edu.wustl.genome.hadoop;
+package edu.wustl.genome.hadoop.coverage;
 
 import fi.tkk.ics.hadoop.bam.BAMInputFormat;
 import fi.tkk.ics.hadoop.bam.SAMRecordWritable;
