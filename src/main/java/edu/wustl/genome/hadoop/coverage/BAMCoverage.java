@@ -11,6 +11,9 @@ import java.util.Iterator;
 import java.lang.String;
 import java.io.File;
 import java.util.List;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
@@ -52,8 +55,9 @@ public class BAMCoverage {
 
     public static class BamCoverageMapper extends Mapper<LongWritable, SAMRecordWritable, AvroKey<String>, AvroValue<Integer>> {
 
+        private HashMap<String, LinkedHashMap<Integer, Integer>> outputs = new HashMap<String, LinkedHashMap<Integer, Integer>>();
         private static final Integer one = new Integer(1);
-        private static final AvroValue<Integer> avroValue = new AvroValue<Integer>(one);
+        private static final AvroValue<Integer> avroValue = new AvroValue<Integer>();
         private AvroKey<String> avroKey = new AvroKey<String>();
 
         @Override
@@ -64,20 +68,76 @@ public class BAMCoverage {
             List<AlignmentBlock> alignmentBlocks = record.getAlignmentBlocks();
             AlignmentBlock alignmentBlock;
             Iterator<AlignmentBlock> itr = alignmentBlocks.iterator();
-            int referenceStart;
-            int blockLength;
-            int position;
+
+            LinkedHashMap<Integer, Integer> chrCoverage = outputs.get(referenceName);
+            if (chrCoverage == null) {
+                chrCoverage = new LinkedHashMap<Integer, Integer>();
+                outputs.put(referenceName, chrCoverage);
+            }
+
+            Integer readStart = new Integer(-1);
+            Integer referenceStart;
+            Integer blockLength;
+            Integer position;
 
             while (itr.hasNext()) {
                 alignmentBlock = itr.next();
                 referenceStart = alignmentBlock.getReferenceStart();
+                if (readStart == null || readStart <= 0) {
+                    readStart = referenceStart;
+                }
                 blockLength = alignmentBlock.getLength();
+
                 for (position = referenceStart; position < referenceStart + blockLength; position++) {
-                    String chrPosition = new String(referenceName + ":" + String.valueOf(position));
-                    avroKey.datum(chrPosition);
-                    context.write(avroKey, avroValue);
+                    Integer coverage = chrCoverage.get(position);
+                    if (coverage == null) {
+                        chrCoverage.put(position, one);
+                    }
+                    else {
+                        chrCoverage.put(position, (coverage + one));
+                    }
                 }
             }
+
+            outputRecordsWithKeyLessThan(referenceName, readStart, context);
+        }
+
+        // Write out coverage for any genomic position prior to the provided position
+        private void outputRecordsWithKeyLessThan(String chr, Integer maxPosition, Context context) 
+                throws IOException, InterruptedException {
+            LinkedHashMap<Integer, Integer> chrCoverage = outputs.get(chr);
+            Set<Integer> keys = chrCoverage.keySet();
+            Iterator<Integer> iterator = keys.iterator();
+            while (iterator.hasNext()) {
+                Integer position = iterator.next();
+                if (maxPosition != null && position >= maxPosition) {
+                    break;
+                }
+                Integer coverage = chrCoverage.get(position);
+                String chrPosition = new String(chr + ":" + String.valueOf(position));
+                avroKey.datum(chrPosition);
+                avroValue.datum(coverage);
+                context.write(avroKey, avroValue);
+                iterator.remove();
+            }
+        }
+
+        @Override
+        public void run(Context context) throws IOException, InterruptedException {
+            setup(context);
+            while(context.nextKeyValue()) {
+                map(context.getCurrentKey(), context.getCurrentValue(), context);
+            }
+
+            // Write out any remaining output key/value pairs
+            Set<String> chromosomes = outputs.keySet();
+            Iterator<String> iterator = chromosomes.iterator();
+            while (iterator.hasNext()) {
+                String chr = iterator.next();
+                outputRecordsWithKeyLessThan(chr, null, context);
+            }
+
+            cleanup(context);
         }
     }
 
