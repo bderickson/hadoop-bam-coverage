@@ -164,6 +164,32 @@ public class BAMCoverage {
         }
     }
 
+    public static class AvroBamCoverageCombiner
+            extends AvroReducer<Utf8, Integer, Pair<Utf8, Integer>> {
+
+        private static Pair<Utf8, Integer> pair;
+
+        @Override
+        public void reduce(Utf8 key, Iterable<Integer> iterable,
+                AvroCollector<Pair<Utf8, Integer>> collector, Reporter reporter)
+                throws IOException {
+            int sum = 0;
+            Iterator<Integer> iterator = iterable.iterator();
+            while (iterator.hasNext()) {
+                Integer value = iterator.next();
+                sum += value.intValue();
+            }
+
+            if (pair == null) {
+                pair = new Pair(key, sum);
+            }
+            else {
+                pair.set(key, sum);
+            }
+            collector.collect(pair);
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         JobConf conf = new JobConf();
         String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
@@ -186,6 +212,8 @@ public class BAMCoverage {
         Schema intSchema = Schema.create(Schema.Type.INT);
         Schema mapPairSchema = Pair.getPairSchema(stringSchema, intSchema);
         AvroJob.setMapOutputSchema(conf, mapPairSchema);
+
+        AvroJob.setCombinerClass(conf, AvroBamCoverageCombiner.class);
 
         AvroJob.setReducerClass(conf, AvroBamCoverageReducer.class);
         AvroJob.setOutputSchema(conf, coverageSchema);
